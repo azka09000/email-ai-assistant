@@ -1,4 +1,5 @@
 import os
+import json
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -20,13 +21,12 @@ Convert the email into a SHORT EXECUTIVE SUMMARY.
 STRICT RULES:
 - 5 to 7 bullet points only
 - Each bullet must be short (max 15 words)
+- Each bullet MUST start with "-"
+- Put each bullet on a NEW LINE
 - Remove all unnecessary detail
-- Do NOT copy full sections of the email
 - Focus only on key decisions, actions, and important info
 - No explanations, no paragraphs
-
-OUTPUT FORMAT:
-- Bullet points only
+- Do NOT include any intro or heading text
 
 EMAIL:
 {email_text}
@@ -68,3 +68,61 @@ EMAIL:
     )
 
     return response.choices[0].message.content.strip()
+
+
+# ---------------- EMAIL CLASSIFICATION (FIXED - JSON OUTPUT) ----------------
+def classify_email(email_text: str):
+    prompt = f"""
+You are an expert email classification system.
+
+TASK:
+Classify the email and return ONLY valid JSON.
+
+CATEGORIES:
+- Job Opportunity
+- Meeting Request
+- Task Assignment
+- Inquiry
+- Spam / Promotional
+- General
+
+PRIORITY:
+- High
+- Medium
+- Low
+
+STRICT OUTPUT FORMAT (JSON ONLY):
+{{
+  "type": "<category>",
+  "priority": "<High|Medium|Low>",
+  "reason": "<one short sentence>"
+}}
+
+RULES:
+- Output ONLY JSON
+- No extra text
+- No explanations
+- No markdown
+- No bullet points
+
+EMAIL:
+{email_text}
+"""
+
+    response = client.chat.completions.create(
+        model="meta-llama/llama-3.1-8b-instruct",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.2
+    )
+
+    content = response.choices[0].message.content.strip()
+
+    # Safe parsing fallback
+    try:
+        return json.loads(content)
+    except:
+        return {
+            "type": "General",
+            "priority": "Low",
+            "reason": content
+        }
